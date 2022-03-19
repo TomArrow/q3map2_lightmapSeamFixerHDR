@@ -67,7 +67,6 @@ inline bool stripDetected(float*& data, int offset, int& w, int& h,int& detectio
 
 
 void process(std::string filename) {
-	int stripDetectionWidth = 3;
 	int overCorrect = 2;
 
 	std::stringstream ss;
@@ -82,66 +81,69 @@ void process(std::string filename) {
 	int pixelCount = w * h;
 	int stripsDetected = 0;
 
-	for (int dir = 0; dir < 2; dir++) {
-		if (dir == 1) {
-			rotateImage90Degrees(data, w, h);
-		}
-		for (int i = 0; i < pixelCount; i++) {
-			if (stripDetected(data, i, w, h, stripDetectionWidth)) {
-				int detectedStripLength = 1;
-				int newOffset = i + w;
-				while (newOffset < pixelCount && stripDetected(data, newOffset, w, h, stripDetectionWidth)) {
-					detectedStripLength++;
-					newOffset += w;
-				}
-				if (detectedStripLength >= MINSTRIPLENGTH) {
-					stripsDetected++;
+	for (int stripDetectionWidth = 1; stripDetectionWidth <= 5; stripDetectionWidth++) {
+		for (int dir = 0; dir < 2; dir++) {
+			if (dir == 1) {
+				rotateImage90Degrees(data, w, h);
+			}
+			for (int i = 0; i < pixelCount; i++) {
+				if (stripDetected(data, i, w, h, stripDetectionWidth)) {
+					int detectedStripLength = 1;
+					int newOffset = i + w;
+					while (newOffset < pixelCount && stripDetected(data, newOffset, w, h, stripDetectionWidth)) {
+						detectedStripLength++;
+						newOffset += w;
+					}
+					if (detectedStripLength >= MINSTRIPLENGTH) {
+						stripsDetected++;
 
-					// Apply fix
+						// Apply fix
 
-					for (int l = -overCorrect; l < detectedStripLength+overCorrect; l++) { // Iterate through lines
+						for (int l = -overCorrect; l < detectedStripLength+overCorrect; l++) { // Iterate through lines
 
-						int firstStripPixelOffset = i + l * w;
+							int firstStripPixelOffset = i + l * w;
 
-						int colorSourceOffset = l < 0 ? 0-l:( l >= detectedStripLength ? detectedStripLength-l-1:0); // For overcorrecting lines, we take the color from one of the main detected lines
+							int colorSourceOffset = l < 0 ? 0-l:( l >= detectedStripLength ? detectedStripLength-l-1:0); // For overcorrecting lines, we take the color from one of the main detected lines
 
-						int firstStripPixelOffsetForColor = i + (l + colorSourceOffset) * w;
+							int firstStripPixelOffsetForColor = i + (l + colorSourceOffset) * w;
 
-						if (firstStripPixelOffset < 0 || firstStripPixelOffset > pixelCount) continue; // Since we are using overcorrecting, we might accidentally go outside the image. Account for that.
+							if (firstStripPixelOffset < 0 || firstStripPixelOffset > pixelCount) continue; // Since we are using overcorrecting, we might accidentally go outside the image. Account for that.
 
-						float* pointerFirstStripPixel = data + firstStripPixelOffset * 3;
-						float* pointerFirstStripPixelForColor = data + firstStripPixelOffsetForColor * 3;
-						// Decide if we should take value from left or right
-						// We simply take the brighter one or the one that isn't on another line
-						float* dataPointerSrc;
+							float* pointerFirstStripPixel = data + firstStripPixelOffset * 3;
+							float* pointerFirstStripPixelForColor = data + firstStripPixelOffsetForColor * 3;
+							// Decide if we should take value from left or right
+							// We simply take the brighter one or the one that isn't on another line
+							float* dataPointerSrc;
 
-						bool rightBorderReached = firstStripPixelOffset + stripDetectionWidth >= pixelCount;
-						bool rightBorderReachedColor = firstStripPixelOffsetForColor + stripDetectionWidth >= pixelCount;
+							bool rightBorderReached = firstStripPixelOffset + stripDetectionWidth >= pixelCount;
+							bool rightBorderReachedColor = firstStripPixelOffsetForColor + stripDetectionWidth >= pixelCount;
 
-						float leftLuminance = (i%w) == 0 ? 0.0f : Luminance(pointerFirstStripPixelForColor -3);
-						float rightLuminance = rightBorderReached ? 0.0f : Luminance(pointerFirstStripPixelForColor + stripDetectionWidth * 3 /*+ 3*/);
+							float leftLuminance = (i%w) == 0 ? 0.0f : Luminance(pointerFirstStripPixelForColor -3);
+							float rightLuminance = rightBorderReached ? 0.0f : Luminance(pointerFirstStripPixelForColor + stripDetectionWidth * 3 /*+ 3*/);
 
-						if ((i%w == 0 || rightLuminance > leftLuminance) && !rightBorderReachedColor) {
-							// Take from right
-							dataPointerSrc = pointerFirstStripPixelForColor + stripDetectionWidth * 3 /*+ 3*/;
-						}
-						else {
-							dataPointerSrc = pointerFirstStripPixelForColor -3;
-						}
+							if ((i%w == 0 || rightLuminance > leftLuminance) && !rightBorderReachedColor) {
+								// Take from right
+								dataPointerSrc = pointerFirstStripPixelForColor + stripDetectionWidth * 3 /*+ 3*/;
+							}
+							else {
+								dataPointerSrc = pointerFirstStripPixelForColor -3;
+							}
 
-						for (int p = 0; p < stripDetectionWidth; p++) { // Iterate through strip pixels
-							float* dataPointerDst = pointerFirstStripPixel + p * 3;
-							//if (!colorSourceOffset || !IsBlack(dataPointerDst)) {
-								// When we are overcorrecting, we don't want to overwrite black/blank space
-								VectorCopy(dataPointerSrc, dataPointerDst);
-							//}
+							for (int p = 0; p < stripDetectionWidth; p++) { // Iterate through strip pixels
+								float* dataPointerDst = pointerFirstStripPixel + p * 3;
+								//if (!colorSourceOffset || !IsBlack(dataPointerDst)) {
+									// When we are overcorrecting, we don't want to overwrite black/blank space
+									VectorCopy(dataPointerSrc, dataPointerDst);
+								//}
+							}
 						}
 					}
+
+
 				}
-
-
 			}
 		}
+
 	}
 	// Rotate back to original orientation
 	rotateImage90Degrees(data, w, h);
